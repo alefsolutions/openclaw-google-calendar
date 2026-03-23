@@ -23,5 +23,9 @@
   },
   "peerDependencies": {
     "openclaw": "*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test tests/tool-registration.test.mjs"
   }
 }

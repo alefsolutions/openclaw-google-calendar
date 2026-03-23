@@ -42,6 +42,7 @@ dist/
 build/
 out/
 coverage/
+.test-dist/
 *.tsbuildinfo
 
 # OpenClaw and plugin-local state
