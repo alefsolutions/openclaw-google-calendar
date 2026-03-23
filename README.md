@@ -1,18 +1,28 @@
 # OpenClaw Google Calendar Plugin
 
-This repository is the foundation for an OpenClaw-specific Google Calendar plugin. Its purpose is to let OpenClaw manage a user's calendar through a complete plugin package that combines skills, tools, plugin-level configuration, and an installation flow suitable for OpenClaw.
+This repository contains an OpenClaw-specific Google Calendar plugin. It is designed as a real plugin package, not just a script folder, and includes OpenClaw skills, agent tools, plugin-level configuration, and a local-repo installation path for OpenClaw.
 
-The project is being designed for personal use first, with a structure that can later support reuse, packaging, and broader distribution. The first target is local-repository installation, so the plugin can be developed and tested directly in an OpenClaw environment before any registry publishing is considered.
+The project is personal-use first, but it is structured so it can later be reused, packaged, and distributed more cleanly through channels such as ClawHub or npm if that becomes useful.
 
 ## Purpose
 
-This plugin is intended to give OpenClaw practical Google Calendar capabilities for everyday calendar management. Rather than acting as a single skill or a loose script collection, the goal is to build a real OpenClaw plugin repository that is organized, configurable, and ready to grow into a distributable package later.
+This plugin gives OpenClaw practical Google Calendar capabilities for day-to-day calendar management. It is meant to be channel-agnostic: as long as OpenClaw routes the instruction into the plugin, the behavior should remain consistent regardless of where the request originated.
 
-The plugin is meant to be channel-agnostic. As long as OpenClaw routes the user instruction into the plugin, the behavior should remain consistent regardless of where the request originated.
+## Current Scope
 
-## Intended Functionality
+The plugin currently includes:
 
-At a high level, the plugin is expected to support:
+- OpenClaw tool registration for auth, event CRUD, upcoming-event listing, and next-meeting lookup
+- a shipped skill for clarification, auth handoff, and safe tool usage
+- plugin-level config resolution with environment-variable overrides
+- Google OAuth token handling and Google Calendar API gateway wiring
+- local-repository installation support for OpenClaw development
+
+The underlying runtime is implemented in Node.js and organized as an OpenClaw-native plugin repository.
+
+## Planned Capabilities
+
+At a high level, the plugin is intended to support:
 
 - creating calendar events
 - reading calendar events
@@ -23,38 +33,43 @@ At a high level, the plugin is expected to support:
 - clarifying ambiguous user requests before taking action
 - handling missing details such as incomplete dates, times, attendees, locations, or other event metadata
 
-Calendar event management is the primary focus. Task or to-do support may be considered later if it fits naturally with the Google integrations used by the plugin, but it is not the initial priority.
+Calendar event management is the primary focus. Task or to-do support may be considered later, but it is not the initial priority.
 
-## Plugin Scope
+## Configuration
 
-This repository is intended to contain the building blocks of a complete OpenClaw plugin package, including:
+Configuration is designed to stay practical and predictable. The plugin uses plugin config plus environment variables for items such as:
 
-- skills for user-facing instruction handling and clarification
-- tools for the underlying Google Calendar operations
-- plugin-level configuration for setup and runtime behavior
-- an installation path suitable for local OpenClaw usage
-- a repository structure that can later be packaged and distributed cleanly
+- OAuth credentials and token file locations
+- default calendar id
+- default time zone
+- confirmation mode
+- upcoming-event window
+- read-only mode
 
-The underlying tool scripts are planned to be written in Node.js so the plugin is straightforward to run, maintain, and extend in a typical JavaScript ecosystem.
+Machine-specific secrets should stay outside committed source files whenever possible.
 
-## Configuration Direction
+Example config is available in [`examples/openclaw.config.example.jsonc`](./examples/openclaw.config.example.jsonc), and example environment overrides are available in [`.env.example`](./.env.example).
 
-Configuration should stay practical and easy to reason about. The plugin will prefer clean setup patterns based on environment variables and plugin-level configuration, especially for items such as credentials, default calendar selection, timezone behavior, and local development settings.
+## Local Installation
 
-Because this repository is being prepared as a real plugin project, secrets and machine-specific values should remain outside committed source whenever possible.
+Local-repo installation is the first target for this project.
 
-## Development Direction
+The short version is:
 
-The current focus is repository foundation, not full implementation. This stage is about defining the project clearly as an OpenClaw plugin and preparing the structure needed for the next steps.
+1. Install dependencies in this repo with `npm install`.
+2. Install the plugin into OpenClaw from the local folder with either:
+   - `openclaw plugins install .`
+   - `openclaw plugins install -l .` for a linked dev install
+3. Restart the Gateway with `openclaw gateway restart`.
+4. Configure the plugin under `plugins.entries.openclaw-google-calendar.config`.
+5. Complete the Google auth flow with `google_calendar_begin_auth` and `google_calendar_complete_auth`.
 
-Near-term priorities include:
+Detailed setup instructions are in [`docs/local-install.md`](./docs/local-install.md).
 
-- establishing the plugin package structure
-- defining the OpenClaw-facing configuration surface
-- implementing Node.js tool scripts for Google Calendar operations
-- adding skills that can interpret user intent, ask clarifying questions, and call tools safely
-- supporting local-repo installation for OpenClaw first
+## Development Notes
+
+This repository is still in staged development, but it is no longer just a scaffold. The plugin now includes real runtime layers, auth wiring, Google Calendar gateway integration, clarification behavior, confirmation handling, and repository validation tests.
 
 ## Future Packaging Potential
 
-Although this repository is not currently focused on publishing, it is being organized so it can later be adapted for packaging or distribution through channels such as ClawHub or npm if that becomes useful. For now, the goal is a solid local OpenClaw plugin that works well for personal use and is structured for reuse.
+This repository is not focused on publishing yet. The current goal is a solid local OpenClaw plugin that works well for personal use and remains structured for reuse later.
