@@ -1,0 +1,23 @@
+{
+  "plugins": {
+    "entries": {
+      "openclaw-google-calendar": {
+        "enabled": true,
+        "config": {
+          "credentialsPath": "./secrets/google-oauth-client.json",
+          "tokenPath": "./secrets/google-calendar-token.json",
+          "defaultCalendarId": "primary",
+          "defaultTimeZone": "America/Los_Angeles",
+          "confirmationMode": "when-ambiguous",
+          "upcomingWindowDays": 7,
+          "readOnlyMode": false
+        }
+      }
+    }
+  },
+  "tools": {
+    "allow": [
+      "openclaw-google-calendar"
+    ]
+  }
+}

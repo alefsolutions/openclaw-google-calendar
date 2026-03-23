@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-google-calendar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenClaw Google Calendar plugin scaffold with skills, tools, and plugin metadata.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "src",
+    "skills",
+    "docs",
+    "examples",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "openclaw": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  }
+}

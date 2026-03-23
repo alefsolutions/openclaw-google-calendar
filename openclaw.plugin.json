@@ -1,0 +1,77 @@
+{
+  "id": "openclaw-google-calendar",
+  "name": "OpenClaw Google Calendar",
+  "description": "Google Calendar plugin scaffold for OpenClaw with skills, tools, and plugin-level configuration.",
+  "version": "0.1.0",
+  "skills": [
+    "./skills"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "credentialsPath": {
+        "type": "string",
+        "minLength": 1
+      },
+      "tokenPath": {
+        "type": "string",
+        "minLength": 1
+      },
+      "defaultCalendarId": {
+        "type": "string",
+        "default": "primary"
+      },
+      "defaultTimeZone": {
+        "type": "string"
+      },
+      "confirmationMode": {
+        "type": "string",
+        "enum": [
+          "always",
+          "when-ambiguous",
+          "never"
+        ],
+        "default": "when-ambiguous"
+      },
+      "upcomingWindowDays": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 7
+      },
+      "readOnlyMode": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  },
+  "uiHints": {
+    "credentialsPath": {
+      "label": "OAuth Client Credentials File",
+      "placeholder": "./secrets/google-oauth-client.json",
+      "help": "Path to the Google OAuth client credentials JSON used by this plugin."
+    },
+    "tokenPath": {
+      "label": "Stored Token File",
+      "placeholder": "./secrets/google-calendar-token.json",
+      "help": "Path where the plugin will later read or persist the Google Calendar access token."
+    },
+    "defaultCalendarId": {
+      "label": "Default Calendar ID",
+      "placeholder": "primary"
+    },
+    "defaultTimeZone": {
+      "label": "Default Time Zone",
+      "placeholder": "America/Los_Angeles"
+    },
+    "confirmationMode": {
+      "label": "Confirmation Mode"
+    },
+    "upcomingWindowDays": {
+      "label": "Upcoming Event Window"
+    },
+    "readOnlyMode": {
+      "label": "Read-Only Mode"
+    }
+  }
+}
