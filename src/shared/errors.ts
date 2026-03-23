@@ -12,6 +12,13 @@ export class ValidationError extends Error {
   }
 }
 
+export class ResourceNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ResourceNotFoundError";
+  }
+}
+
 export class NotImplementedYetError extends Error {
   constructor(message: string) {
     super(message);
