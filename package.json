@@ -1,13 +1,26 @@
 {
-  "name": "openclaw-google-calendar",
+  "name": "@alefdigitalsolutions/openclaw-google-calendar-plugin",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/you/openclaw-google-calendar.git"
+  },
+  "author": "Louis Ronald",
+  "homepage": "https://github.com/you/openclaw-google-calendar#readme",
+  "bugs": {
+    "url": "https://github.com/you/openclaw-google-calendar/issues"
+  },
   "description": "OpenClaw Google Calendar plugin scaffold with skills, tools, and plugin metadata.",
   "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
+  "keywords": ["openclaw", "plugin", "google-calendar", "calendar"],
   "files": [
     "src",
     "skills",
