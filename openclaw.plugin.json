@@ -18,6 +18,10 @@
         "type": "string",
         "minLength": 1
       },
+      "oauthRedirectUri": {
+        "type": "string",
+        "minLength": 1
+      },
       "defaultCalendarId": {
         "type": "string",
         "default": "primary"
@@ -55,6 +59,11 @@
       "label": "Stored Token File",
       "placeholder": "./secrets/google-calendar-token.json",
       "help": "Path where the plugin will later read or persist the Google Calendar access token."
+    },
+    "oauthRedirectUri": {
+      "label": "OAuth Redirect URI",
+      "placeholder": "http://127.0.0.1:3000/oauth2callback",
+      "help": "Optional redirect URI override. If omitted, the plugin uses the first redirect URI from the OAuth client credentials file."
     },
     "defaultCalendarId": {
       "label": "Default Calendar ID",

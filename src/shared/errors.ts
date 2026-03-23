@@ -12,6 +12,13 @@ export class ValidationError extends Error {
   }
 }
 
+export class AuthenticationRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthenticationRequiredError";
+  }
+}
+
 export class ResourceNotFoundError extends Error {
   constructor(message: string) {
     super(message);

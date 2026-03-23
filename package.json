@@ -26,9 +26,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test tests/tool-registration.test.mjs tests/google-calendar-gateway.test.mjs"
+    "test": "tsc -p tsconfig.test.json && node --test tests/tool-registration.test.mjs tests/google-calendar-gateway.test.mjs tests/google-calendar-auth.test.mjs"
   },
   "dependencies": {
     "googleapis": "^171.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
   }
 }

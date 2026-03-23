@@ -6,6 +6,7 @@
         "config": {
           "credentialsPath": "./secrets/google-oauth-client.json",
           "tokenPath": "./secrets/google-calendar-token.json",
+          "oauthRedirectUri": "http://127.0.0.1:3000/oauth2callback",
           "defaultCalendarId": "primary",
           "defaultTimeZone": "America/Los_Angeles",
           "confirmationMode": "when-ambiguous",

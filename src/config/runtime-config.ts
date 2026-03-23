@@ -5,6 +5,7 @@ export type ConfirmationMode = "always" | "when-ambiguous" | "never";
 export interface GoogleCalendarPluginConfig {
   credentialsPath?: string;
   tokenPath?: string;
+  oauthRedirectUri?: string;
   defaultCalendarId?: string;
   defaultTimeZone?: string;
   confirmationMode?: ConfirmationMode;
@@ -15,6 +16,7 @@ export interface GoogleCalendarPluginConfig {
 export interface ResolvedGoogleCalendarPluginConfig {
   credentialsPath?: string;
   tokenPath?: string;
+  oauthRedirectUri?: string;
   defaultCalendarId: string;
   defaultTimeZone?: string;
   confirmationMode: ConfirmationMode;
@@ -29,6 +31,7 @@ export interface GoogleCalendarRuntimeEnv {
 export const googleCalendarEnvVars = {
   credentialsPath: "GOOGLE_CALENDAR_CREDENTIALS_PATH",
   tokenPath: "GOOGLE_CALENDAR_TOKEN_PATH",
+  oauthRedirectUri: "GOOGLE_CALENDAR_OAUTH_REDIRECT_URI",
   defaultCalendarId: "GOOGLE_CALENDAR_DEFAULT_CALENDAR_ID",
   defaultTimeZone: "GOOGLE_CALENDAR_DEFAULT_TIME_ZONE",
   confirmationMode: "GOOGLE_CALENDAR_CONFIRMATION_MODE",
@@ -72,6 +75,10 @@ export function resolveGoogleCalendarPluginConfig(
       pluginConfig.credentialsPath,
     ),
     tokenPath: pickString(readEnv(env, googleCalendarEnvVars.tokenPath), pluginConfig.tokenPath),
+    oauthRedirectUri: pickString(
+      readEnv(env, googleCalendarEnvVars.oauthRedirectUri),
+      pluginConfig.oauthRedirectUri,
+    ),
     defaultCalendarId:
       pickString(
         readEnv(env, googleCalendarEnvVars.defaultCalendarId),
