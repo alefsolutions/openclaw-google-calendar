@@ -2,10 +2,16 @@ import type { DeleteCalendarEventCommand } from "../ports/calendar-gateway.js";
 import type { ResolvedGoogleCalendarPluginConfig } from "../../config/runtime-config.js";
 import type { CalendarEventReference } from "../../domain/calendar-event.js";
 import type { UseCaseResult } from "../../domain/clarification.js";
-import { blocked, needsClarification, ready } from "../../domain/clarification.js";
+import {
+  blocked,
+  needsClarification,
+  needsConfirmation,
+  ready,
+} from "../../domain/clarification.js";
 
 export interface DeleteCalendarEventInput {
   reference?: CalendarEventReference;
+  confirmed?: boolean;
 }
 
 export function prepareDeleteCalendarEvent(
@@ -24,6 +30,12 @@ export function prepareDeleteCalendarEvent(
         reason: "Deletion requires a specific event reference.",
       },
     ]);
+  }
+
+  if (requiresDeleteConfirmation(config) && input.confirmed !== true) {
+    return needsConfirmation(
+      'Please confirm this calendar event deletion by re-running the tool with "confirmed": true.',
+    );
   }
 
   return ready({
@@ -58,4 +70,14 @@ function isBlank(value: string | undefined): boolean {
 
 function normalizeOptionalString(value: string | undefined): string | undefined {
   return isBlank(value) ? undefined : value!.trim();
+}
+
+function requiresDeleteConfirmation(
+  config: ResolvedGoogleCalendarPluginConfig,
+): boolean {
+  if (config.confirmationMode === "never") {
+    return false;
+  }
+
+  return true;
 }

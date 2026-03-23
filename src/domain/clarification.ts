@@ -24,6 +24,11 @@ export interface BlockedResult {
   reason: string;
 }
 
+export interface ConfirmationNeededResult {
+  status: "needs-confirmation";
+  message: string;
+}
+
 export interface ReadyResult<TValue> {
   status: "ready";
   value: TValue;
@@ -37,6 +42,7 @@ export interface NotImplementedResult {
 export type UseCaseResult<TValue> =
   | ClarificationNeededResult
   | BlockedResult
+  | ConfirmationNeededResult
   | ReadyResult<TValue>
   | NotImplementedResult;
 
@@ -51,6 +57,13 @@ export function blocked(reason: string): BlockedResult {
   return {
     status: "blocked",
     reason,
+  };
+}
+
+export function needsConfirmation(message: string): ConfirmationNeededResult {
+  return {
+    status: "needs-confirmation",
+    message,
   };
 }
 

@@ -5,7 +5,12 @@ import type {
   CalendarEventReference,
 } from "../../domain/calendar-event.js";
 import type { UseCaseResult } from "../../domain/clarification.js";
-import { blocked, needsClarification, ready } from "../../domain/clarification.js";
+import {
+  blocked,
+  needsClarification,
+  needsConfirmation,
+  ready,
+} from "../../domain/clarification.js";
 import {
   compareNormalizedCalendarDateTimes,
   normalizeCalendarDateTimeValue,
@@ -14,6 +19,7 @@ import {
 export interface UpdateCalendarEventInput {
   reference?: CalendarEventReference;
   changes?: CalendarEventPatch;
+  confirmed?: boolean;
 }
 
 export function prepareUpdateCalendarEvent(
@@ -88,6 +94,12 @@ export function prepareUpdateCalendarEvent(
     if (dateTimeComparison >= 0) {
       return blocked("The updated end time must be after the updated start time.");
     }
+  }
+
+  if (requiresUpdateConfirmation(input, config) && input.confirmed !== true) {
+    return needsConfirmation(
+      'Please confirm this calendar event update by re-running the tool with "confirmed": true.',
+    );
   }
 
   return ready({
@@ -209,4 +221,19 @@ function isBlank(value: string | undefined): boolean {
 
 function normalizeOptionalString(value: string | undefined): string | undefined {
   return isBlank(value) ? undefined : value!.trim();
+}
+
+function requiresUpdateConfirmation(
+  input: UpdateCalendarEventInput,
+  config: ResolvedGoogleCalendarPluginConfig,
+): boolean {
+  if (config.confirmationMode === "always") {
+    return true;
+  }
+
+  if (config.confirmationMode !== "when-ambiguous") {
+    return false;
+  }
+
+  return Boolean(input.reference && isBlank(input.reference.eventId));
 }

@@ -265,6 +265,7 @@ test("delete-event tool returns a success message after the gateway deletes the 
     reference: {
       eventId: "evt_delete",
     },
+    confirmed: true,
   });
 
   assert.equal(deletedEventId, "evt_delete");
@@ -304,6 +305,7 @@ test("delete-event tool gives a readable success message for hint-based deletion
     reference: {
       summaryHint: "Lunch",
     },
+    confirmed: true,
   });
 
   assert.match(result.content[0].text, /matching "Lunch"/i);
@@ -484,6 +486,7 @@ test("tools return a clarification-style message when event lookup is ambiguous"
     changes: {
       summary: "Client lunch",
     },
+    confirmed: true,
   });
 
   assert.match(result.content[0].text, /more than one possible event/i);
@@ -527,6 +530,7 @@ test("tools return the not-found message from the gateway", async () => {
     reference: {
       summaryHint: "Missing lunch",
     },
+    confirmed: true,
   });
 
   assert.equal(result.content[0].text, "I could not find a matching calendar event to delete.");

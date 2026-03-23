@@ -2,7 +2,12 @@ import type { CreateCalendarEventCommand } from "../ports/calendar-gateway.js";
 import type { ResolvedGoogleCalendarPluginConfig } from "../../config/runtime-config.js";
 import type { CalendarAttendee, CalendarDateTimeValue } from "../../domain/calendar-event.js";
 import type { ClarificationItem, UseCaseResult } from "../../domain/clarification.js";
-import { blocked, needsClarification, ready } from "../../domain/clarification.js";
+import {
+  blocked,
+  needsClarification,
+  needsConfirmation,
+  ready,
+} from "../../domain/clarification.js";
 import {
   compareNormalizedCalendarDateTimes,
   createDefaultCalendarEventEnd,
@@ -17,6 +22,7 @@ export interface CreateCalendarEventInput {
   start?: CalendarDateTimeValue;
   end?: CalendarDateTimeValue;
   attendees?: CalendarAttendee[];
+  confirmed?: boolean;
 }
 
 export function prepareCreateCalendarEvent(
@@ -97,6 +103,12 @@ export function prepareCreateCalendarEvent(
 
   if (dateTimeComparison >= 0) {
     return blocked("The event end time must be after the start time.");
+  }
+
+  if (config.confirmationMode === "always" && input.confirmed !== true) {
+    return needsConfirmation(
+      'Please confirm this calendar event creation by re-running the tool with "confirmed": true.',
+    );
   }
 
   const command: CreateCalendarEventCommand = {

@@ -121,6 +121,7 @@ test("prepareUpdateCalendarEvent normalizes local timed updates with the configu
       reference: {
         summaryHint: "Lunch",
       },
+      confirmed: true,
       changes: {
         start: {
           dateTime: "2026-03-24T12:00",

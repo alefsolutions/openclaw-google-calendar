@@ -173,7 +173,7 @@ function buildGoogleCalendarToolDefinitions(
     {
       name: googleCalendarToolCatalog.deleteEvent.name,
       description: googleCalendarToolCatalog.deleteEvent.description,
-      parameters: eventReferenceInputSchema,
+      parameters: deleteEventSchema,
       execute: async (_toolCallId, params) => {
         const config = getResolvedPluginConfig(api);
         const result = prepareDeleteCalendarEvent(
@@ -286,6 +286,10 @@ function formatEarlyUseCaseResult(
 
   if (result.status === "blocked") {
     return textResult(`I cannot ${actionLabel}: ${result.reason}`);
+  }
+
+  if (result.status === "needs-confirmation") {
+    return textResult(result.message);
   }
 
   if (result.status === "not-implemented") {
@@ -626,6 +630,10 @@ const createEventSchema = {
       type: "array",
       items: attendeeSchema,
     },
+    confirmed: {
+      type: "boolean",
+      description: "Set to true to confirm that the event should be created.",
+    },
   },
 };
 
@@ -657,6 +665,22 @@ const updateEventSchema = {
           items: attendeeSchema,
         },
       },
+    },
+    confirmed: {
+      type: "boolean",
+      description: "Set to true to confirm that the event should be updated.",
+    },
+  },
+};
+
+const deleteEventSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    reference: eventReferenceInputSchema.properties.reference,
+    confirmed: {
+      type: "boolean",
+      description: "Set to true to confirm that the event should be deleted.",
     },
   },
 };
