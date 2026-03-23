@@ -26,6 +26,29 @@ export class ResourceNotFoundError extends Error {
   }
 }
 
+export class AmbiguousCalendarEventReferenceError extends Error {
+  readonly candidates: Array<{
+    id: string;
+    calendarId: string;
+    summary: string;
+    start?: string;
+  }>;
+
+  constructor(
+    message: string,
+    candidates: Array<{
+      id: string;
+      calendarId: string;
+      summary: string;
+      start?: string;
+    }>,
+  ) {
+    super(message);
+    this.name = "AmbiguousCalendarEventReferenceError";
+    this.candidates = candidates;
+  }
+}
+
 export class NotImplementedYetError extends Error {
   constructor(message: string) {
     super(message);

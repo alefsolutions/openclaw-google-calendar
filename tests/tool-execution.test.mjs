@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AuthenticationRequiredError } from "../.test-dist/src/shared/errors.js";
+import {
+  AmbiguousCalendarEventReferenceError,
+  AuthenticationRequiredError,
+  ResourceNotFoundError,
+} from "../.test-dist/src/shared/errors.js";
 import { registerGoogleCalendarTools } from "../.test-dist/src/tools/index.js";
 
 test("begin-auth tool returns the authorization URL from the auth service", async () => {
@@ -267,6 +271,44 @@ test("delete-event tool returns a success message after the gateway deletes the 
   assert.match(result.content[0].text, /Deleted calendar event evt_delete/i);
 });
 
+test("delete-event tool gives a readable success message for hint-based deletion", async () => {
+  const tool = getRegisteredTool("google_calendar_delete_event", undefined, {
+    authServiceFactory() {
+      return createPassThroughAuthService();
+    },
+    gatewayFactory() {
+      return {
+        async createEvent() {
+          throw new Error("not used");
+        },
+        async getEvent() {
+          throw new Error("not used");
+        },
+        async updateEvent() {
+          throw new Error("not used");
+        },
+        async deleteEvent() {
+          return undefined;
+        },
+        async listUpcomingEvents() {
+          throw new Error("not used");
+        },
+        async findNextMeeting() {
+          throw new Error("not used");
+        },
+      };
+    },
+  });
+
+  const result = await runTool(tool, {
+    reference: {
+      summaryHint: "Lunch",
+    },
+  });
+
+  assert.match(result.content[0].text, /matching "Lunch"/i);
+});
+
 test("list-upcoming-events tool formats the gateway response", async () => {
   const tool = getRegisteredTool("google_calendar_list_upcoming_events", undefined, {
     authServiceFactory() {
@@ -388,6 +430,106 @@ test("tools return auth guidance when authentication is required", async () => {
   assert.match(result.content[0].text, /authorization is required/i);
   assert.match(result.content[0].text, /google_calendar_complete_auth/i);
   assert.match(result.content[0].text, /mock=needs-auth/i);
+});
+
+test("tools return a clarification-style message when event lookup is ambiguous", async () => {
+  const tool = getRegisteredTool("google_calendar_update_event", undefined, {
+    authServiceFactory() {
+      return createPassThroughAuthService();
+    },
+    gatewayFactory() {
+      return {
+        async createEvent() {
+          throw new Error("not used");
+        },
+        async getEvent() {
+          throw new Error("not used");
+        },
+        async updateEvent() {
+          throw new AmbiguousCalendarEventReferenceError(
+            "ambiguous",
+            [
+              {
+                id: "evt_1",
+                calendarId: "primary",
+                summary: "Lunch",
+                start: "2026-03-24T12:00:00.000Z",
+              },
+              {
+                id: "evt_2",
+                calendarId: "primary",
+                summary: "Lunch",
+                start: "2026-03-24T15:00:00.000Z",
+              },
+            ],
+          );
+        },
+        async deleteEvent() {
+          throw new Error("not used");
+        },
+        async listUpcomingEvents() {
+          throw new Error("not used");
+        },
+        async findNextMeeting() {
+          throw new Error("not used");
+        },
+      };
+    },
+  });
+
+  const result = await runTool(tool, {
+    reference: {
+      summaryHint: "Lunch",
+    },
+    changes: {
+      summary: "Client lunch",
+    },
+  });
+
+  assert.match(result.content[0].text, /more than one possible event/i);
+  assert.match(result.content[0].text, /eventId or a more specific startHint/i);
+  assert.match(result.content[0].text, /evt_1/i);
+  assert.match(result.content[0].text, /evt_2/i);
+});
+
+test("tools return the not-found message from the gateway", async () => {
+  const tool = getRegisteredTool("google_calendar_delete_event", undefined, {
+    authServiceFactory() {
+      return createPassThroughAuthService();
+    },
+    gatewayFactory() {
+      return {
+        async createEvent() {
+          throw new Error("not used");
+        },
+        async getEvent() {
+          throw new Error("not used");
+        },
+        async updateEvent() {
+          throw new Error("not used");
+        },
+        async deleteEvent() {
+          throw new ResourceNotFoundError(
+            "I could not find a matching calendar event to delete.",
+          );
+        },
+        async listUpcomingEvents() {
+          throw new Error("not used");
+        },
+        async findNextMeeting() {
+          throw new Error("not used");
+        },
+      };
+    },
+  });
+
+  const result = await runTool(tool, {
+    reference: {
+      summaryHint: "Missing lunch",
+    },
+  });
+
+  assert.equal(result.content[0].text, "I could not find a matching calendar event to delete.");
 });
 
 function getRegisteredTool(toolName, config, dependencies) {

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createGoogleCalendarGateway } from "../.test-dist/src/infrastructure/google/google-calendar-gateway.js";
+import {
+  AmbiguousCalendarEventReferenceError,
+  ResourceNotFoundError,
+} from "../.test-dist/src/shared/errors.js";
 
 test("createEvent maps the command into a Google insert request", async () => {
   const calls = [];
@@ -316,7 +320,145 @@ test("findNextMeeting returns the first non-cancelled event", async () => {
   assert.equal(event.summary, "Planning meeting");
 });
 
-test("getEvent without an event id is deferred to the later reference-resolution task", async () => {
+test("getEvent can resolve a matching event from a summary hint", async () => {
+  const calls = [];
+  const gateway = createGoogleCalendarGateway({
+    events: {
+      async insert() {
+        throw new Error("not used");
+      },
+      async get() {
+        throw new Error("not used");
+      },
+      async patch() {
+        throw new Error("not used");
+      },
+      async delete() {
+        throw new Error("not used");
+      },
+      async list(params) {
+        calls.push(params);
+
+        return {
+          data: {
+            items: [
+              {
+                id: "evt_lookup",
+                summary: "Team sync",
+                start: {
+                  dateTime: "2026-03-24T15:00:00.000Z",
+                },
+                end: {
+                  dateTime: "2026-03-24T15:30:00.000Z",
+                },
+                status: "confirmed",
+              },
+            ],
+          },
+        };
+      },
+    },
+  });
+
+  const event = await gateway.getEvent({
+    reference: {
+      summaryHint: "Team sync",
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].q, "Team sync");
+  assert.ok(event);
+  assert.equal(event.id, "evt_lookup");
+  assert.equal(event.summary, "Team sync");
+});
+
+test("updateEvent resolves a summary and start hint into a single event", async () => {
+  const calls = [];
+  const gateway = createGoogleCalendarGateway({
+    events: {
+      async insert() {
+        throw new Error("not used");
+      },
+      async get() {
+        throw new Error("not used");
+      },
+      async patch(params) {
+        calls.push({ method: "patch", params });
+
+        return {
+          data: {
+            id: params.eventId,
+            summary: params.requestBody.summary,
+            start: {
+              dateTime: "2026-03-25T09:00:00.000Z",
+            },
+            end: {
+              dateTime: "2026-03-25T10:00:00.000Z",
+            },
+            status: "confirmed",
+          },
+        };
+      },
+      async delete() {
+        throw new Error("not used");
+      },
+      async list(params) {
+        calls.push({ method: "list", params });
+
+        return {
+          data: {
+            items: [
+              {
+                id: "evt_day_before",
+                summary: "Planning meeting",
+                start: {
+                  dateTime: "2026-03-24T09:00:00.000Z",
+                },
+                end: {
+                  dateTime: "2026-03-24T10:00:00.000Z",
+                },
+                status: "confirmed",
+              },
+              {
+                id: "evt_target",
+                summary: "Planning meeting",
+                start: {
+                  dateTime: "2026-03-25T09:00:00.000Z",
+                },
+                end: {
+                  dateTime: "2026-03-25T10:00:00.000Z",
+                },
+                status: "confirmed",
+              },
+            ],
+          },
+        };
+      },
+    },
+  });
+
+  const event = await gateway.updateEvent({
+    reference: {
+      summaryHint: "Planning meeting",
+      startHint: "2026-03-25",
+    },
+    changes: {
+      summary: "Updated planning meeting",
+    },
+  });
+
+  assert.equal(calls[0].method, "list");
+  assert.equal(calls[0].params.q, "Planning meeting");
+  assert.equal(calls[0].params.timeMin, "2026-03-25T00:00:00.000Z");
+  assert.equal(calls[0].params.timeMax, "2026-03-26T00:00:00.000Z");
+  assert.equal(calls[1].method, "patch");
+  assert.equal(calls[1].params.eventId, "evt_target");
+  assert.equal(event.id, "evt_target");
+  assert.equal(event.summary, "Updated planning meeting");
+});
+
+test("deleteEvent raises an ambiguity error when more than one event matches the hint", async () => {
   const gateway = createGoogleCalendarGateway({
     events: {
       async insert() {
@@ -332,18 +474,92 @@ test("getEvent without an event id is deferred to the later reference-resolution
         throw new Error("not used");
       },
       async list() {
-        throw new Error("not used");
+        return {
+          data: {
+            items: [
+              {
+                id: "evt_ambiguous_1",
+                summary: "Lunch",
+                start: {
+                  dateTime: "2026-03-24T12:00:00.000Z",
+                },
+                end: {
+                  dateTime: "2026-03-24T13:00:00.000Z",
+                },
+                status: "confirmed",
+              },
+              {
+                id: "evt_ambiguous_2",
+                summary: "Lunch",
+                start: {
+                  dateTime: "2026-03-24T15:00:00.000Z",
+                },
+                end: {
+                  dateTime: "2026-03-24T16:00:00.000Z",
+                },
+                status: "confirmed",
+              },
+            ],
+          },
+        };
       },
     },
   });
 
   await assert.rejects(
     () =>
-      gateway.getEvent({
+      gateway.deleteEvent({
         reference: {
-          summaryHint: "Team sync",
+          summaryHint: "Lunch",
         },
       }),
-    /without an explicit eventId/i,
+    (error) => {
+      assert.ok(error instanceof AmbiguousCalendarEventReferenceError);
+      assert.equal(error.candidates.length, 2);
+      return true;
+    },
+  );
+});
+
+test("updateEvent raises a not-found error when no hint-based match exists", async () => {
+  const gateway = createGoogleCalendarGateway({
+    events: {
+      async insert() {
+        throw new Error("not used");
+      },
+      async get() {
+        throw new Error("not used");
+      },
+      async patch() {
+        throw new Error("not used");
+      },
+      async delete() {
+        throw new Error("not used");
+      },
+      async list() {
+        return {
+          data: {
+            items: [],
+          },
+        };
+      },
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      gateway.updateEvent({
+        reference: {
+          summaryHint: "Missing planning meeting",
+        },
+        changes: {
+          summary: "Still missing",
+        },
+      }),
+    (error) => {
+      assert.ok(error instanceof ResourceNotFoundError);
+      assert.match(error.message, /matching calendar event to update/i);
+      return true;
+    },
   );
 });

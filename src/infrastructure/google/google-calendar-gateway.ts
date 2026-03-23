@@ -7,7 +7,7 @@ import type {
   UpdateCalendarEventCommand,
   DeleteCalendarEventCommand,
 } from "../../application/ports/calendar-gateway.js";
-import { NotImplementedYetError } from "../../shared/errors.js";
+import { ResourceNotFoundError } from "../../shared/errors.js";
 import type {
   GoogleCalendarClient,
   GoogleCalendarGatewayOptions,
@@ -17,6 +17,7 @@ import {
   mapEventPatchToGoogleEvent,
   mapGoogleEventToDomainEvent,
 } from "./google-calendar-event-mapper.js";
+import { resolveGoogleEventReference } from "./google-calendar-reference-resolution.js";
 
 // This adapter owns raw Google Calendar API calls. Keeping it here lets the
 // use-case layer stay focused on validation and clarification rules.
@@ -37,7 +38,19 @@ export function createGoogleCalendarGateway(
     },
 
     async getEvent(command: GetCalendarEventCommand) {
-      const resolvedReference = resolveEventReference(command.reference, defaultCalendarId);
+      const resolvedReference = await resolveGoogleEventReference(
+        client,
+        command.reference,
+        defaultCalendarId,
+      );
+
+      if (!resolvedReference) {
+        return null;
+      }
+
+      if (resolvedReference.matchedEvent) {
+        return resolvedReference.matchedEvent;
+      }
 
       try {
         const response = await client.events.get({
@@ -56,23 +69,60 @@ export function createGoogleCalendarGateway(
     },
 
     async updateEvent(command: UpdateCalendarEventCommand) {
-      const resolvedReference = resolveEventReference(command.reference, defaultCalendarId);
-      const response = await client.events.patch({
-        calendarId: resolvedReference.calendarId,
-        eventId: resolvedReference.eventId,
-        requestBody: mapEventPatchToGoogleEvent(command.changes),
-      });
+      const resolvedReference = await resolveGoogleEventReference(
+        client,
+        command.reference,
+        defaultCalendarId,
+      );
 
-      return mapGoogleEventToDomainEvent(response.data, resolvedReference.calendarId);
+      if (!resolvedReference) {
+        throw new ResourceNotFoundError("I could not find a matching calendar event to update.");
+      }
+
+      try {
+        const response = await client.events.patch({
+          calendarId: resolvedReference.calendarId,
+          eventId: resolvedReference.eventId,
+          requestBody: mapEventPatchToGoogleEvent(command.changes),
+        });
+
+        return mapGoogleEventToDomainEvent(response.data, resolvedReference.calendarId);
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          throw new ResourceNotFoundError(
+            "I could not find a matching calendar event to update.",
+          );
+        }
+
+        throw error;
+      }
     },
 
     async deleteEvent(command: DeleteCalendarEventCommand) {
-      const resolvedReference = resolveEventReference(command.reference, defaultCalendarId);
+      const resolvedReference = await resolveGoogleEventReference(
+        client,
+        command.reference,
+        defaultCalendarId,
+      );
 
-      await client.events.delete({
-        calendarId: resolvedReference.calendarId,
-        eventId: resolvedReference.eventId,
-      });
+      if (!resolvedReference) {
+        throw new ResourceNotFoundError("I could not find a matching calendar event to delete.");
+      }
+
+      try {
+        await client.events.delete({
+          calendarId: resolvedReference.calendarId,
+          eventId: resolvedReference.eventId,
+        });
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          throw new ResourceNotFoundError(
+            "I could not find a matching calendar event to delete.",
+          );
+        }
+
+        throw error;
+      }
     },
 
     async listUpcomingEvents(command: ListUpcomingEventsCommand) {
@@ -110,25 +160,6 @@ export function createGoogleCalendarGateway(
 
       return nextEvent ?? null;
     },
-  };
-}
-
-function resolveEventReference(
-  reference: GetCalendarEventCommand["reference"],
-  defaultCalendarId: string,
-): {
-  calendarId: string;
-  eventId: string;
-} {
-  if (!reference.eventId) {
-    throw new NotImplementedYetError(
-      "Google event resolution without an explicit eventId is not implemented yet.",
-    );
-  }
-
-  return {
-    calendarId: reference.calendarId ?? defaultCalendarId,
-    eventId: reference.eventId,
   };
 }
 

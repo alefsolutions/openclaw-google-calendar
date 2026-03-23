@@ -35,9 +35,11 @@ import {
 import type { GoogleCalendarClient } from "../infrastructure/google/google-calendar-client.js";
 import { createGoogleCalendarGateway } from "../infrastructure/google/google-calendar-gateway.js";
 import {
+  AmbiguousCalendarEventReferenceError,
   AuthenticationRequiredError,
   NotImplementedYetError,
   PluginConfigurationError,
+  ResourceNotFoundError,
 } from "../shared/errors.js";
 import { googleCalendarToolCatalog } from "./planned-tools.js";
 
@@ -189,8 +191,7 @@ function buildGoogleCalendarToolDefinitions(
             await gateway.deleteEvent(command);
             return command;
           },
-          (command) =>
-            `Deleted calendar event ${command.reference.eventId ?? "(unknown id)"} from calendar ${command.reference.calendarId ?? config.defaultCalendarId}.`,
+          (command) => formatDeleteSuccessMessage(command, config.defaultCalendarId),
         );
       },
     },
@@ -299,6 +300,10 @@ async function formatExecutionError(
   actionLabel: string,
   authService: GoogleCalendarAuthService,
 ): Promise<OpenClawToolResult> {
+  if (error instanceof AmbiguousCalendarEventReferenceError) {
+    return textResult(formatAmbiguousReferenceMessage(actionLabel, error));
+  }
+
   if (error instanceof AuthenticationRequiredError) {
     try {
       const authorizationRequest = await authService.createAuthorizationUrl();
@@ -313,6 +318,10 @@ async function formatExecutionError(
     } catch {
       return textResult(`I cannot ${actionLabel}: ${error.message}`);
     }
+  }
+
+  if (error instanceof ResourceNotFoundError) {
+    return textResult(error.message);
   }
 
   if (error instanceof PluginConfigurationError || error instanceof NotImplementedYetError) {
@@ -460,6 +469,41 @@ function formatCalendarDateTime(value: CalendarDateTimeValue): string {
   }
 
   return "(unspecified)";
+}
+
+function formatDeleteSuccessMessage(
+  command: DeleteCalendarEventCommand,
+  defaultCalendarId: string,
+): string {
+  const calendarId = command.reference.calendarId ?? defaultCalendarId;
+
+  if (command.reference.eventId) {
+    return `Deleted calendar event ${command.reference.eventId} from calendar ${calendarId}.`;
+  }
+
+  if (command.reference.summaryHint) {
+    return `Deleted the calendar event matching "${command.reference.summaryHint}" from calendar ${calendarId}.`;
+  }
+
+  if (command.reference.startHint) {
+    return `Deleted the calendar event that matched ${command.reference.startHint} from calendar ${calendarId}.`;
+  }
+
+  return `Deleted the requested calendar event from calendar ${calendarId}.`;
+}
+
+function formatAmbiguousReferenceMessage(
+  actionLabel: string,
+  error: AmbiguousCalendarEventReferenceError,
+): string {
+  return [
+    `I found more than one possible event for this request, so I cannot ${actionLabel} safely.`,
+    "Please retry with an eventId or a more specific startHint.",
+    ...error.candidates.map(
+      (candidate, index) =>
+        `${index + 1}. ${candidate.summary} | Start: ${candidate.start ?? "(unspecified)"} | Event ID: ${candidate.id} | Calendar: ${candidate.calendarId}`,
+    ),
+  ].join("\n");
 }
 
 function getAuthorizationCode(params: unknown): string | undefined {
