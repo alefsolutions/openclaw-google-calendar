@@ -26,7 +26,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test tests/tool-registration.test.mjs tests/tool-execution.test.mjs tests/google-calendar-gateway.test.mjs tests/google-calendar-auth.test.mjs tests/calendar-date-time-handling.test.mjs tests/confirmation-behavior.test.mjs tests/skill-alignment.test.mjs tests/error-handling.test.mjs"
+    "test": "tsc -p tsconfig.test.json && node --test tests/tool-registration.test.mjs tests/tool-execution.test.mjs tests/google-calendar-gateway.test.mjs tests/google-calendar-auth.test.mjs tests/calendar-date-time-handling.test.mjs tests/confirmation-behavior.test.mjs tests/skill-alignment.test.mjs tests/error-handling.test.mjs tests/repository-validation.test.mjs"
   },
   "dependencies": {
     "googleapis": "^171.4.0"
