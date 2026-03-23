@@ -14,6 +14,7 @@ import {
   AuthenticationRequiredError,
   PluginConfigurationError,
 } from "../../shared/errors.js";
+import { normalizeGoogleCalendarError } from "../../shared/google-calendar-error.js";
 import type { GoogleCalendarClient } from "./google-calendar-client.js";
 import { createGoogleCalendarApiClient } from "./google-calendar-api-client.js";
 import { getGoogleCalendarScopes } from "./google-calendar-scopes.js";
@@ -90,45 +91,59 @@ export function createGoogleCalendarAuthService(
 ): GoogleCalendarAuthService {
   return {
     async createAuthorizationUrl() {
-      const credentials = await loadGoogleOAuthClientCredentials(config);
-      const oauthClient = createOAuthClient(credentials, dependencies);
-      const scopes = getGoogleCalendarScopes(config.readOnlyMode);
+      try {
+        const credentials = await loadGoogleOAuthClientCredentials(config);
+        const oauthClient = createOAuthClient(credentials, dependencies);
+        const scopes = getGoogleCalendarScopes(config.readOnlyMode);
 
-      return {
-        authorizationUrl: oauthClient.generateAuthUrl({
-          access_type: "offline",
-          scope: [...scopes],
-          prompt: "consent",
-          include_granted_scopes: true,
-        }),
-        redirectUri: credentials.redirectUri,
-        scopes,
-      };
+        return {
+          authorizationUrl: oauthClient.generateAuthUrl({
+            access_type: "offline",
+            scope: [...scopes],
+            prompt: "consent",
+            include_granted_scopes: true,
+          }),
+          redirectUri: credentials.redirectUri,
+          scopes,
+        };
+      } catch (error) {
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "start Google Calendar authorization",
+          phase: "authorization-url",
+        });
+      }
     },
 
     async exchangeCodeForToken(code: string) {
-      const credentials = await loadGoogleOAuthClientCredentials(config);
-      const oauthClient = createOAuthClient(credentials, dependencies);
-      const tokenResponse = await oauthClient.getToken(code);
-      const nextTokens = normalizeTokenResponse(tokenResponse);
-      const storedTokens = await readStoredTokensIfPresent(config.tokenPath);
-      const mergedTokens = mergeStoredTokens(storedTokens, nextTokens);
-      const tokenPath = getRequiredConfiguredPath(
-        config.tokenPath,
-        "tokenPath is required for Google Calendar OAuth token storage.",
-      );
+      try {
+        const credentials = await loadGoogleOAuthClientCredentials(config);
+        const oauthClient = createOAuthClient(credentials, dependencies);
+        const tokenResponse = await oauthClient.getToken(code);
+        const nextTokens = normalizeTokenResponse(tokenResponse);
+        const storedTokens = await readStoredTokensIfPresent(config.tokenPath);
+        const mergedTokens = mergeStoredTokens(storedTokens, nextTokens);
+        const tokenPath = getRequiredConfiguredPath(
+          config.tokenPath,
+          "tokenPath is required for Google Calendar OAuth token storage.",
+        );
 
-      await writeStoredTokens(tokenPath, mergedTokens);
+        await writeStoredTokens(tokenPath, mergedTokens);
 
-      return {
-        tokenPath,
-        hasRefreshToken: Boolean(mergedTokens.refresh_token),
-        scope: normalizeOptionalString(mergedTokens.scope),
-        expiryDate:
-          typeof mergedTokens.expiry_date === "number"
-            ? mergedTokens.expiry_date
-            : undefined,
-      };
+        return {
+          tokenPath,
+          hasRefreshToken: Boolean(mergedTokens.refresh_token),
+          scope: normalizeOptionalString(mergedTokens.scope),
+          expiryDate:
+            typeof mergedTokens.expiry_date === "number"
+              ? mergedTokens.expiry_date
+              : undefined,
+        };
+      } catch (error) {
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "complete Google Calendar authentication",
+          phase: "token-exchange",
+        });
+      }
     },
 
     async hasStoredToken() {
@@ -137,29 +152,36 @@ export function createGoogleCalendarAuthService(
     },
 
     async createAuthenticatedCalendarClient() {
-      const credentials = await loadGoogleOAuthClientCredentials(config);
-      const tokenPath = getRequiredConfiguredPath(
-        config.tokenPath,
-        "tokenPath is required to create an authenticated Google Calendar client.",
-      );
-      const storedTokens = await readStoredTokensIfPresent(tokenPath);
-
-      if (!storedTokens?.access_token && !storedTokens?.refresh_token) {
-        throw new AuthenticationRequiredError(
-          "Google Calendar is not authenticated yet. Complete the OAuth flow and store a token before using the plugin.",
+      try {
+        const credentials = await loadGoogleOAuthClientCredentials(config);
+        const tokenPath = getRequiredConfiguredPath(
+          config.tokenPath,
+          "tokenPath is required to create an authenticated Google Calendar client.",
         );
+        const storedTokens = await readStoredTokensIfPresent(tokenPath);
+
+        if (!storedTokens?.access_token && !storedTokens?.refresh_token) {
+          throw new AuthenticationRequiredError(
+            "Google Calendar is not authenticated yet. Complete the OAuth flow and store a token before using the plugin.",
+          );
+        }
+
+        const oauthClient = createOAuthClient(credentials, dependencies);
+        let currentTokens = storedTokens;
+
+        oauthClient.setCredentials(currentTokens);
+        oauthClient.on("tokens", (nextTokens) => {
+          currentTokens = mergeStoredTokens(currentTokens, nextTokens);
+          void writeStoredTokens(tokenPath, currentTokens);
+        });
+
+        return createCalendarClient(oauthClient, dependencies);
+      } catch (error) {
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "authenticate with Google Calendar",
+          phase: "calendar-api",
+        });
       }
-
-      const oauthClient = createOAuthClient(credentials, dependencies);
-      let currentTokens = storedTokens;
-
-      oauthClient.setCredentials(currentTokens);
-      oauthClient.on("tokens", (nextTokens) => {
-        currentTokens = mergeStoredTokens(currentTokens, nextTokens);
-        void writeStoredTokens(tokenPath, currentTokens);
-      });
-
-      return createCalendarClient(oauthClient, dependencies);
     },
   };
 }

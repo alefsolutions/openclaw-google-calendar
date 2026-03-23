@@ -8,6 +8,7 @@ import type {
   DeleteCalendarEventCommand,
 } from "../../application/ports/calendar-gateway.js";
 import { ResourceNotFoundError } from "../../shared/errors.js";
+import { normalizeGoogleCalendarError } from "../../shared/google-calendar-error.js";
 import type {
   GoogleCalendarClient,
   GoogleCalendarGatewayOptions,
@@ -29,12 +30,19 @@ export function createGoogleCalendarGateway(
 
   return {
     async createEvent(command: CreateCalendarEventCommand) {
-      const response = await client.events.insert({
-        calendarId: command.calendarId,
-        requestBody: mapCreateCommandToGoogleEvent(command),
-      });
+      try {
+        const response = await client.events.insert({
+          calendarId: command.calendarId,
+          requestBody: mapCreateCommandToGoogleEvent(command),
+        });
 
-      return mapGoogleEventToDomainEvent(response.data, command.calendarId);
+        return mapGoogleEventToDomainEvent(response.data, command.calendarId);
+      } catch (error) {
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "create a calendar event",
+          phase: "calendar-api",
+        });
+      }
     },
 
     async getEvent(command: GetCalendarEventCommand) {
@@ -64,7 +72,10 @@ export function createGoogleCalendarGateway(
           return null;
         }
 
-        throw error;
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "read a calendar event",
+          phase: "calendar-api",
+        });
       }
     },
 
@@ -94,7 +105,10 @@ export function createGoogleCalendarGateway(
           );
         }
 
-        throw error;
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "update a calendar event",
+          phase: "calendar-api",
+        });
       }
     },
 
@@ -121,44 +135,61 @@ export function createGoogleCalendarGateway(
           );
         }
 
-        throw error;
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "delete a calendar event",
+          phase: "calendar-api",
+        });
       }
     },
 
     async listUpcomingEvents(command: ListUpcomingEventsCommand) {
-      const anchorTime = normalizeAnchorTime(command.anchorTime);
-      const timeMax = addDays(anchorTime, command.windowDays);
-      const response = await client.events.list({
-        calendarId: command.calendarId,
-        singleEvents: true,
-        orderBy: "startTime",
-        showDeleted: false,
-        maxResults: command.limit,
-        timeMin: anchorTime,
-        timeMax,
-      });
+      try {
+        const anchorTime = normalizeAnchorTime(command.anchorTime);
+        const timeMax = addDays(anchorTime, command.windowDays);
+        const response = await client.events.list({
+          calendarId: command.calendarId,
+          singleEvents: true,
+          orderBy: "startTime",
+          showDeleted: false,
+          maxResults: command.limit,
+          timeMin: anchorTime,
+          timeMax,
+        });
 
-      return (response.data.items ?? [])
-        .map((event) => mapGoogleEventToDomainEvent(event, command.calendarId))
-        .filter((event) => event.status !== "cancelled");
+        return (response.data.items ?? [])
+          .map((event) => mapGoogleEventToDomainEvent(event, command.calendarId))
+          .filter((event) => event.status !== "cancelled");
+      } catch (error) {
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "list upcoming calendar events",
+          phase: "calendar-api",
+        });
+      }
     },
 
     async findNextMeeting(command: FindNextMeetingCommand) {
-      const anchorTime = normalizeAnchorTime(command.anchorTime);
-      const response = await client.events.list({
-        calendarId: command.calendarId,
-        singleEvents: true,
-        orderBy: "startTime",
-        showDeleted: false,
-        maxResults: 10,
-        timeMin: anchorTime,
-      });
+      try {
+        const anchorTime = normalizeAnchorTime(command.anchorTime);
+        const response = await client.events.list({
+          calendarId: command.calendarId,
+          singleEvents: true,
+          orderBy: "startTime",
+          showDeleted: false,
+          maxResults: 10,
+          timeMin: anchorTime,
+        });
 
-      const nextEvent = (response.data.items ?? [])
-        .map((event) => mapGoogleEventToDomainEvent(event, command.calendarId))
-        .find((event) => event.status !== "cancelled");
+        const nextEvent = (response.data.items ?? [])
+          .map((event) => mapGoogleEventToDomainEvent(event, command.calendarId))
+          .find((event) => event.status !== "cancelled");
 
-      return nextEvent ?? null;
+        return nextEvent ?? null;
+      } catch (error) {
+        throw normalizeGoogleCalendarError(error, {
+          actionLabel: "find the next meeting",
+          phase: "calendar-api",
+        });
+      }
     },
   };
 }

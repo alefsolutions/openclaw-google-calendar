@@ -19,6 +19,13 @@ export class AuthenticationRequiredError extends Error {
   }
 }
 
+export class ExternalServiceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExternalServiceError";
+  }
+}
+
 export class ResourceNotFoundError extends Error {
   constructor(message: string) {
     super(message);

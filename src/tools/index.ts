@@ -37,6 +37,7 @@ import { createGoogleCalendarGateway } from "../infrastructure/google/google-cal
 import {
   AmbiguousCalendarEventReferenceError,
   AuthenticationRequiredError,
+  ExternalServiceError,
   NotImplementedYetError,
   PluginConfigurationError,
   ResourceNotFoundError,
@@ -78,9 +79,17 @@ function buildGoogleCalendarToolDefinitions(
       execute: async () => {
         const config = getResolvedPluginConfig(api);
         const authService = createToolAuthService(config, dependencies);
-        const authorizationRequest = await authService.createAuthorizationUrl();
+        try {
+          const authorizationRequest = await authService.createAuthorizationUrl();
 
-        return textResult(formatAuthorizationRequest(authorizationRequest));
+          return textResult(formatAuthorizationRequest(authorizationRequest));
+        } catch (error) {
+          return await formatAuthToolError(
+            error,
+            "start Google Calendar authorization",
+            authService,
+          );
+        }
       },
     },
     {
@@ -98,9 +107,17 @@ function buildGoogleCalendarToolDefinitions(
           );
         }
 
-        const tokenMetadata = await authService.exchangeCodeForToken(authorizationCode);
+        try {
+          const tokenMetadata = await authService.exchangeCodeForToken(authorizationCode);
 
-        return textResult(formatStoredTokenMetadata(tokenMetadata));
+          return textResult(formatStoredTokenMetadata(tokenMetadata));
+        } catch (error) {
+          return await formatAuthToolError(
+            error,
+            "complete Google Calendar authentication",
+            authService,
+          );
+        }
       },
     },
     {
@@ -325,6 +342,43 @@ async function formatExecutionError(
   }
 
   if (error instanceof ResourceNotFoundError) {
+    return textResult(error.message);
+  }
+
+  if (error instanceof ExternalServiceError) {
+    return textResult(error.message);
+  }
+
+  if (error instanceof PluginConfigurationError || error instanceof NotImplementedYetError) {
+    return textResult(`I cannot ${actionLabel}: ${error.message}`);
+  }
+
+  return textResult(
+    `I could not ${actionLabel} because Google Calendar returned an unexpected error.`,
+  );
+}
+
+async function formatAuthToolError(
+  error: unknown,
+  actionLabel: string,
+  authService: GoogleCalendarAuthService,
+): Promise<OpenClawToolResult> {
+  if (error instanceof AuthenticationRequiredError) {
+    try {
+      const authorizationRequest = await authService.createAuthorizationUrl();
+
+      return textResult(
+        [
+          `I could not ${actionLabel}: ${error.message}`,
+          `Start again with this URL: ${authorizationRequest.authorizationUrl}`,
+        ].join("\n"),
+      );
+    } catch {
+      return textResult(`I could not ${actionLabel}: ${error.message}`);
+    }
+  }
+
+  if (error instanceof ExternalServiceError) {
     return textResult(error.message);
   }
 
