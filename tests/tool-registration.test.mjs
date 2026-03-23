@@ -13,10 +13,12 @@ test("registerGoogleCalendarTools registers all expected tools as optional", () 
 
   registerGoogleCalendarTools(api);
 
-  assert.equal(registeredTools.length, 6);
+  assert.equal(registeredTools.length, 8);
   assert.deepEqual(
     registeredTools.map(({ tool }) => tool.name),
     [
+      "google_calendar_begin_auth",
+      "google_calendar_complete_auth",
       "google_calendar_create_event",
       "google_calendar_get_event",
       "google_calendar_update_event",
@@ -67,13 +69,12 @@ test("delete-event tool respects read-only mode from plugin config", async () =>
   assert.match(result.content[0].text, /read-only mode/i);
 });
 
-test("list-upcoming tool reaches the ready path with plugin defaults", async () => {
-  const tool = getRegisteredTool("google_calendar_list_upcoming_events");
+test("complete-auth tool asks for an authorization code when it is missing", async () => {
+  const tool = getRegisteredTool("google_calendar_complete_auth");
 
   const result = await runTool(tool, {});
 
-  assert.match(result.content[0].text, /Validation for list upcoming calendar events passed/i);
-  assert.match(result.content[0].text, /not implemented yet/i);
+  assert.match(result.content[0].text, /need the Google authorization code/i);
 });
 
 function getRegisteredTool(toolName, config) {

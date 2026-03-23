@@ -1,4 +1,12 @@
 export const googleCalendarToolCatalog = {
+  beginAuth: {
+    name: "google_calendar_begin_auth",
+    description: "Generate a Google OAuth URL so the plugin can be authorized to access Google Calendar.",
+  },
+  completeAuth: {
+    name: "google_calendar_complete_auth",
+    description: "Store Google OAuth tokens by exchanging an authorization code returned after consent.",
+  },
   createEvent: {
     name: "google_calendar_create_event",
     description: "Create a Google Calendar event after missing details are clarified.",
