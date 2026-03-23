@@ -1,3 +1,4 @@
+import { isValidTimeZone } from "../shared/calendar-date-time.js";
 import { PluginConfigurationError } from "../shared/errors.js";
 
 export type ConfirmationMode = "always" | "when-ambiguous" | "never";
@@ -84,7 +85,7 @@ export function resolveGoogleCalendarPluginConfig(
         readEnv(env, googleCalendarEnvVars.defaultCalendarId),
         pluginConfig.defaultCalendarId,
       ) ?? defaultGoogleCalendarPluginConfig.defaultCalendarId,
-    defaultTimeZone: pickString(
+    defaultTimeZone: pickTimeZone(
       readEnv(env, googleCalendarEnvVars.defaultTimeZone),
       pluginConfig.defaultTimeZone,
     ),
@@ -127,6 +128,23 @@ function pickConfirmationMode(
   throw new PluginConfigurationError(
     "confirmationMode must be one of: always, when-ambiguous, never.",
   );
+}
+
+function pickTimeZone(
+  envValue: string | undefined,
+  configValue: string | undefined,
+): string | undefined {
+  const value = pickString(envValue, configValue);
+
+  if (!value) {
+    return undefined;
+  }
+
+  if (!isValidTimeZone(value)) {
+    throw new PluginConfigurationError("defaultTimeZone must be a valid IANA time zone.");
+  }
+
+  return value;
 }
 
 function pickPositiveInteger(

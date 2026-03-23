@@ -3,6 +3,11 @@ import type { ResolvedGoogleCalendarPluginConfig } from "../../config/runtime-co
 import type { CalendarAttendee, CalendarDateTimeValue } from "../../domain/calendar-event.js";
 import type { ClarificationItem, UseCaseResult } from "../../domain/clarification.js";
 import { blocked, needsClarification, ready } from "../../domain/clarification.js";
+import {
+  compareNormalizedCalendarDateTimes,
+  createDefaultCalendarEventEnd,
+  normalizeCalendarDateTimeValue,
+} from "../../shared/calendar-date-time.js";
 
 export interface CreateCalendarEventInput {
   calendarId?: string;
@@ -42,16 +47,56 @@ export function prepareCreateCalendarEvent(
     });
   }
 
-  if (!hasCalendarDate(input.end)) {
-    clarificationItems.push({
-      field: "end" as const,
-      question: "When should the event end?",
-      reason: "An end date or date-time is required to create the event.",
-    });
-  }
-
   if (clarificationItems.length > 0) {
     return needsClarification(clarificationItems);
+  }
+
+  const normalizedStart = normalizeCalendarDateTimeValue(input.start, {
+    defaultTimeZone: config.defaultTimeZone,
+    fieldLabel: "start",
+  });
+
+  if (normalizedStart.status === "invalid") {
+    return blocked(normalizedStart.reason);
+  }
+
+  if (normalizedStart.status !== "valid") {
+    return needsClarification([
+      {
+        field: "start",
+        question: "When should the event start?",
+        reason: "A start date or date-time is required to create the event.",
+      },
+    ]);
+  }
+
+  const normalizedEnd = normalizeCalendarDateTimeValue(input.end, {
+    defaultTimeZone: config.defaultTimeZone,
+    fieldLabel: "end",
+  });
+
+  if (normalizedEnd.status === "invalid") {
+    return blocked(normalizedEnd.reason);
+  }
+
+  const finalEndValue =
+    normalizedEnd.status === "valid"
+      ? normalizedEnd.value
+      : createDefaultCalendarEventEnd(normalizedStart.value);
+
+  const dateTimeComparison = compareNormalizedCalendarDateTimes(
+    normalizedStart.value,
+    finalEndValue,
+  );
+
+  if (dateTimeComparison === null) {
+    return blocked(
+      "Event start and end must both be all-day values or both be timed values in a compatible format.",
+    );
+  }
+
+  if (dateTimeComparison >= 0) {
+    return blocked("The event end time must be after the start time.");
   }
 
   const command: CreateCalendarEventCommand = {
@@ -59,19 +104,10 @@ export function prepareCreateCalendarEvent(
     summary: input.summary!.trim(),
     description: normalizeOptionalString(input.description),
     location: normalizeOptionalString(input.location),
-    start: normalizeDateTimeValue(input.start!),
-    end: normalizeDateTimeValue(input.end!),
+    start: normalizedStart.value.value,
+    end: finalEndValue.value,
     attendees: normalizeAttendees(input.attendees),
   };
-
-  if (hasComparableDateTimes(command.start, command.end)) {
-    const startTime = Date.parse(command.start.dateTime!);
-    const endTime = Date.parse(command.end.dateTime!);
-
-    if (!Number.isNaN(startTime) && !Number.isNaN(endTime) && endTime <= startTime) {
-      return blocked("The event end time must be after the start time.");
-    }
-  }
 
   return ready(command);
 }
@@ -82,21 +118,6 @@ function hasCalendarDate(value: CalendarDateTimeValue | undefined): boolean {
   }
 
   return !isBlank(value.date) || !isBlank(value.dateTime);
-}
-
-function hasComparableDateTimes(
-  start: CalendarDateTimeValue,
-  end: CalendarDateTimeValue,
-): boolean {
-  return !isBlank(start.dateTime) && !isBlank(end.dateTime);
-}
-
-function normalizeDateTimeValue(value: CalendarDateTimeValue): CalendarDateTimeValue {
-  return {
-    date: normalizeOptionalString(value.date),
-    dateTime: normalizeOptionalString(value.dateTime),
-    timeZone: normalizeOptionalString(value.timeZone),
-  };
 }
 
 function normalizeAttendees(

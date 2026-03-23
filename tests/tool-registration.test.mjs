@@ -36,7 +36,7 @@ test("registerGoogleCalendarTools registers all expected tools as optional", () 
   }
 });
 
-test("create-event tool asks for clarification when required fields are missing", async () => {
+test("create-event tool asks for clarification when the title and start are missing", async () => {
   const tool = getRegisteredTool("google_calendar_create_event");
 
   const result = await runTool(tool, {});
@@ -44,7 +44,7 @@ test("create-event tool asks for clarification when required fields are missing"
   assert.match(result.content[0].text, /I need a bit more detail/i);
   assert.match(result.content[0].text, /What should the event title be\?/i);
   assert.match(result.content[0].text, /When should the event start\?/i);
-  assert.match(result.content[0].text, /When should the event end\?/i);
+  assert.doesNotMatch(result.content[0].text, /When should the event end\?/i);
 });
 
 test("delete-event tool respects read-only mode from plugin config", async () => {

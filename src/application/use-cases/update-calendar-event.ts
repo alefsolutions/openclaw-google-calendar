@@ -1,12 +1,15 @@
 import type { UpdateCalendarEventCommand } from "../ports/calendar-gateway.js";
 import type { ResolvedGoogleCalendarPluginConfig } from "../../config/runtime-config.js";
 import type {
-  CalendarDateTimeValue,
   CalendarEventPatch,
   CalendarEventReference,
 } from "../../domain/calendar-event.js";
 import type { UseCaseResult } from "../../domain/clarification.js";
 import { blocked, needsClarification, ready } from "../../domain/clarification.js";
+import {
+  compareNormalizedCalendarDateTimes,
+  normalizeCalendarDateTimeValue,
+} from "../../shared/calendar-date-time.js";
 
 export interface UpdateCalendarEventInput {
   reference?: CalendarEventReference;
@@ -31,9 +34,13 @@ export function prepareUpdateCalendarEvent(
     ]);
   }
 
-  const normalizedChanges = normalizePatch(input.changes);
+  const normalizedChanges = normalizePatch(input.changes, config.defaultTimeZone);
 
-  if (!normalizedChanges) {
+  if (normalizedChanges.status === "invalid") {
+    return blocked(normalizedChanges.reason);
+  }
+
+  if (normalizedChanges.status === "missing") {
     return needsClarification([
       {
         field: "updatePayload",
@@ -43,18 +50,49 @@ export function prepareUpdateCalendarEvent(
     ]);
   }
 
-  if (hasComparableDateTimes(normalizedChanges.start, normalizedChanges.end)) {
-    const startTime = Date.parse(normalizedChanges.start!.dateTime!);
-    const endTime = Date.parse(normalizedChanges.end!.dateTime!);
+  if (normalizedChanges.value.start && normalizedChanges.value.end) {
+    const normalizedStart = normalizeCalendarDateTimeValue(normalizedChanges.value.start, {
+      defaultTimeZone: config.defaultTimeZone,
+      fieldLabel: "updated start",
+    });
+    const normalizedEnd = normalizeCalendarDateTimeValue(normalizedChanges.value.end, {
+      defaultTimeZone: config.defaultTimeZone,
+      fieldLabel: "updated end",
+    });
 
-    if (!Number.isNaN(startTime) && !Number.isNaN(endTime) && endTime <= startTime) {
+    if (normalizedStart.status === "invalid") {
+      return blocked(normalizedStart.reason);
+    }
+
+    if (normalizedEnd.status === "invalid") {
+      return blocked(normalizedEnd.reason);
+    }
+
+    if (normalizedStart.status !== "valid" || normalizedEnd.status !== "valid") {
+      return blocked(
+        "Updated start and end must both be provided when changing event timing.",
+      );
+    }
+
+    const dateTimeComparison = compareNormalizedCalendarDateTimes(
+      normalizedStart.value,
+      normalizedEnd.value,
+    );
+
+    if (dateTimeComparison === null) {
+      return blocked(
+        "Updated start and end must both be all-day values or both be timed values in a compatible format.",
+      );
+    }
+
+    if (dateTimeComparison >= 0) {
       return blocked("The updated end time must be after the updated start time.");
     }
   }
 
   return ready({
     reference: normalizeReference(input.reference!),
-    changes: normalizedChanges,
+    changes: normalizedChanges.value,
   });
 }
 
@@ -79,21 +117,63 @@ function normalizeReference(reference: CalendarEventReference): CalendarEventRef
   };
 }
 
-function normalizePatch(changes: CalendarEventPatch | undefined): CalendarEventPatch | undefined {
+function normalizePatch(
+  changes: CalendarEventPatch | undefined,
+  defaultTimeZone: string | undefined,
+):
+  | {
+      status: "missing";
+    }
+  | {
+      status: "invalid";
+      reason: string;
+    }
+  | {
+      status: "valid";
+      value: CalendarEventPatch;
+    } {
   if (!changes) {
-    return undefined;
+    return {
+      status: "missing",
+    };
+  }
+
+  const normalizedStart = normalizeCalendarDateTimeValue(changes.start, {
+    defaultTimeZone,
+    fieldLabel: "updated start",
+  });
+  const normalizedEnd = normalizeCalendarDateTimeValue(changes.end, {
+    defaultTimeZone,
+    fieldLabel: "updated end",
+  });
+
+  if (normalizedStart.status === "invalid") {
+    return normalizedStart;
+  }
+
+  if (normalizedEnd.status === "invalid") {
+    return normalizedEnd;
   }
 
   const normalizedPatch: CalendarEventPatch = {
     summary: normalizeOptionalString(changes.summary),
     description: normalizeOptionalString(changes.description),
     location: normalizeOptionalString(changes.location),
-    start: normalizeDateTimeValue(changes.start),
-    end: normalizeDateTimeValue(changes.end),
+    start: normalizedStart.status === "valid" ? normalizedStart.value.value : undefined,
+    end: normalizedEnd.status === "valid" ? normalizedEnd.value.value : undefined,
     attendees: normalizeAttendees(changes.attendees),
   };
 
-  return hasPatchContent(normalizedPatch) ? normalizedPatch : undefined;
+  if (!hasPatchContent(normalizedPatch)) {
+    return {
+      status: "missing",
+    };
+  }
+
+  return {
+    status: "valid",
+    value: normalizedPatch,
+  };
 }
 
 function hasPatchContent(changes: CalendarEventPatch): boolean {
@@ -105,29 +185,6 @@ function hasPatchContent(changes: CalendarEventPatch): boolean {
       changes.end ||
       (changes.attendees && changes.attendees.length > 0),
   );
-}
-
-function hasComparableDateTimes(
-  start: CalendarDateTimeValue | undefined,
-  end: CalendarDateTimeValue | undefined,
-): boolean {
-  return Boolean(start?.dateTime && end?.dateTime);
-}
-
-function normalizeDateTimeValue(
-  value: CalendarDateTimeValue | undefined,
-): CalendarDateTimeValue | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalizedValue = {
-    date: normalizeOptionalString(value.date),
-    dateTime: normalizeOptionalString(value.dateTime),
-    timeZone: normalizeOptionalString(value.timeZone),
-  };
-
-  return normalizedValue.date || normalizedValue.dateTime ? normalizedValue : undefined;
 }
 
 function normalizeAttendees(attendees: CalendarEventPatch["attendees"]): CalendarEventPatch["attendees"] {
